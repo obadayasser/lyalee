@@ -73,6 +73,7 @@ const Product3 = () => {
                   <Card.Img
                     variant="top"
                     src={product.img}
+                    loading="lazy"
                     alt={product.text}
                     style={{ cursor: "pointer" }}
                     className={`product3-image ${!product.availability ? 'img-grayscale' : ''}`}

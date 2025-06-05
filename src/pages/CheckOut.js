@@ -285,6 +285,7 @@ const fetchCartItems = async () => {
                         <Col xs={3}>
                           <img
                             src={item.img}
+                            loading="lazy"
                             alt={item.name}
                             style={{ width: "40px", height: "40px", objectFit: "cover", borderRadius: "5px" }}
                           />

@@ -48,6 +48,7 @@ const Product2 = () => {
                   <Card.Img
                     variant="top"
                     src={product.img}
+                    loading="lazy"
                     onClick={() => product.availability !== false && goToProductDetails(product.id)}
                     className={product.availability === false ? 'unavailable-image' : ''}
                   />

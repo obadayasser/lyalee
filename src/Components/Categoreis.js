@@ -59,6 +59,7 @@ const Shop = () => {
                 <div className="category-image" >
                   <img
                     src={category.img}
+                    loading="lazy"
                     alt={category.name}
                     className="img-fluid"
                   />

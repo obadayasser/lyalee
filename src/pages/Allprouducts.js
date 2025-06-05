@@ -304,6 +304,7 @@ const AllPruduacts = () => {
                   src={selectedProduct.img || sss}
                   alt={selectedProduct.text}
                   className="img-fluid"
+                  loading="lazy"
                 />
               </Col>
               <Col md={6}>
