@@ -28,7 +28,8 @@ import { toast } from "react-toastify";
 import Footer from "../Components/Footer";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
-
+import { useDispatch } from "react-redux";
+import { addToCartInFirestore, updateQuantityInCart } from "../slices/cartSlice"; 
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ const ProductDetails = () => {
   const [selectedHeight, setSelectedHeight] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState(null);
+const dispatch = useDispatch();
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -63,41 +65,58 @@ const ProductDetails = () => {
     fetchProduct();
   }, [id]);
 
-  const checkIfProductInCart = async () => {
-    const cartRef = collection(db, "cart");
-    const q = query(
-      cartRef,
-      where("productId", "==", product.id),
-      where("color", "==", selectedColor),
-      where("weight", "==", selectedWeight),
-      where("height", "==", selectedHeight)
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.empty ? null : snapshot.docs[0];
-  };
+const checkIfProductInCart = async (guestId) => {
+  const cartRef = collection(db, "cart");
+  const q = query(
+    cartRef,
+    where("guestId", "==", guestId), 
+    where("productId", "==", product.id),
+    where("color", "==", selectedColor),
+    where("weight", "==", selectedWeight),
+    where("height", "==", selectedHeight)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.empty ? null : snapshot.docs[0];
+};
 
-  const handleAddOrUpdate = async (goToCheckout = false) => {
-    if (!selectedColor || !selectedWeight || !selectedHeight) {
-      toast.error("❌ اختر اللون والوزن والطول أولاً");
-      return;
-    }
 
-    if (!product.availability) {
-      toast.error("❌ المنتج غير متوفر حالياً");
-      return;
-    }
+const getGuestId = () => {
+  let guestId = localStorage.getItem("guestId");
+  if (!guestId) {
+    guestId = `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    localStorage.setItem("guestId", guestId);
+  }
+  return guestId;
+};
 
-    try {
-      const existingItem = await checkIfProductInCart();
+const handleAddOrUpdate = async (goToCheckout = false) => {
+  if (!selectedColor || !selectedWeight || !selectedHeight) {
+    toast.error("❌ اختر اللون والوزن والطول أولاً");
+    return;
+  }
 
-      if (existingItem) {
-        await updateDoc(doc(db, "cart", existingItem.id), {
+  if (!product.availability) {
+    toast.error("❌ المنتج غير متوفر حالياً");
+    return;
+  }
+
+  try {
+    const guestId = getGuestId(); 
+
+    const existingItem = await checkIfProductInCart(guestId);
+
+    if (existingItem) {
+      // 👇 نستخدم thunk من cartSlice
+      dispatch(
+        updateQuantityInCart({
+          itemId: existingItem.id,
           quantity: existingItem.data().quantity + quantity,
-          timestamp: new Date(),
-        });
-        toast.success(`✅ تم تحديث الكمية لـ ${product.text}`);
-      } else {
-        await addDoc(collection(db, "cart"), {
+        })
+      );
+      toast.success(`✅ تم تحديث الكمية لـ ${product.text}`);
+    } else {
+      dispatch(
+        addToCartInFirestore({
           productId: product.id,
           text: product.text,
           price: product.price,
@@ -106,17 +125,18 @@ const ProductDetails = () => {
           weight: selectedWeight,
           height: selectedHeight,
           color: selectedColor,
-          timestamp: new Date(),
-        });
-        toast.success("✅ تمت الإضافة للسلة");
-      }
-
-      if (goToCheckout) navigate("/checkout");
-    } catch (error) {
-      console.error("خطأ:", error);
-      toast.error("❌ حدث خطأ أثناء الإضافة!");
+          guestId,
+        })
+      );
+      toast.success("✅ تمت الإضافة للسلة");
     }
-  };
+
+    if (goToCheckout) navigate("/checkout");
+  } catch (error) {
+    console.error("خطأ:", error);
+    toast.error("❌ حدث خطأ أثناء الإضافة!");
+  }
+};
 
   if (loading) return <LoadingScreen />;
   if (!product) return <Alert variant="danger">المنتج غير موجود</Alert>;

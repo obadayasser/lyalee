@@ -1,13 +1,4 @@
 import { useEffect, useState } from "react";
-import {
-  db,
-  collection,
-  getDocs,
-  deleteDoc,
-  doc,
-  updateDoc,
-  getDoc,
-} from "../FireBase/Firebase";
 import { Container, Row, Col, Button, Card, Alert } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -17,103 +8,28 @@ import Footer from "../Components/Footer";
 import AOS from "aos";
 import "aos/dist/aos.css";
 
+// ✅ Redux
+import { useSelector, useDispatch } from "react-redux";
+import { removeFromCart, updateQuantityInCart, fetchCartFromFirestore } from "../slices/cartSlice";
+
 const Cart = () => {
-  const [cartItems, setCartItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [totalPrice, setTotalPrice] = useState(0);
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  // ✅ جاي من Redux
+  const { items: cartItems, totalPrice, loading } = useSelector((state) => state.cart);
+
   const [loadingItemId, setLoadingItemId] = useState(null);
 
-  const navigate = useNavigate();
-
   useEffect(() => {
-    AOS.init({
-      duration: 700,
-      once: true,
-    });
-  }, []);
+    AOS.init({ duration: 700, once: true });
+    dispatch(fetchCartFromFirestore()); // ✅ أول ما الصفحة تفتح
+  }, [dispatch]);
 
-  const fetchCartItems = async () => {
-    try {
-      const cartSnapshot = await getDocs(collection(db, "cart"));
-      const collectionNames = ["one", "two", "three", "pageone"];
-
-      const cartList = await Promise.all(
-        cartSnapshot.docs.map(async (cartDoc) => {
-          const cartItem = { id: cartDoc.id, ...cartDoc.data() };
-          let foundProduct = null;
-
-          for (const collectionName of collectionNames) {
-            const productRef = doc(db, collectionName, cartItem.productId);
-            const productSnap = await getDoc(productRef);
-
-            if (productSnap.exists()) {
-              foundProduct = productSnap.data();
-              break;
-            }
-          }
-
-          if (foundProduct) {
-            cartItem.img = foundProduct.img;
-            cartItem.text = foundProduct.text;
-            cartItem.price = foundProduct.price;
-            cartItem.weight = foundProduct.weight;
-            cartItem.height = foundProduct.height;
-            cartItem.color = foundProduct.color;
-          } else {
-            console.warn(
-              `Product with id ${cartItem.productId} not found in any collection.`
-            );
-          }
-
-          return cartItem;
-        })
-      );
-
-      setCartItems(cartList);
-      calculateTotalPrice(cartList);
-
-      return cartList;
-    } catch (error) {
-      toast.error("حدث خطأ أثناء جلب العناصر من السلة");
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateTotalPrice = (items) => {
-    const total = items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
-    setTotalPrice(total);
-  };
-
-  const removeItemFromCart = async (itemId) => {
-    try {
-      await deleteDoc(doc(db, "cart", itemId));
-      toast.success("تم حذف المنتج من السلة");
-      fetchCartItems();
-    } catch (error) {
-      toast.error("حدث خطأ أثناء حذف المنتج من السلة");
-    }
-  };
   const updateQuantity = async (itemId, quantity) => {
     setLoadingItemId(itemId);
-
     try {
-      const cartRef = doc(db, "cart", itemId);
-      await updateDoc(cartRef, { quantity });
-
-      // تحديث العنصر محلياً
-      const updatedItems = cartItems.map((item) =>
-        item.id === itemId ? { ...item, quantity } : item
-      );
-      setCartItems(updatedItems);
-
-      // تحديث السعر
-      calculateTotalPrice(updatedItems);
-
+      await dispatch(updateQuantityInCart({ itemId, quantity }));
       toast.success("تم تحديث الكمية");
     } catch (error) {
       toast.error("حدث خطأ أثناء تحديث الكمية");
@@ -122,24 +38,20 @@ const Cart = () => {
     }
   };
 
-  const proceedToCheckout = () => {
-    navigate("/checkout");
+  const removeItem = async (itemId) => {
+    try {
+      await dispatch(removeFromCart(itemId));
+      toast.success("تم حذف المنتج من السلة");
+    } catch (error) {
+      toast.error("حدث خطأ أثناء الحذف");
+    }
   };
 
-  const continueShopping = () => {
-    navigate("/");
-  };
-
-  const goToProductDetails = (productId) => {
-    navigate(`/product/${productId}`);
-  };
-
-  useEffect(() => {
-    fetchCartItems();
-  }, []);
+  const proceedToCheckout = () => navigate("/checkout");
+  const continueShopping = () => navigate("/");
+  const goToProductDetails = (productId) => navigate(`/product/${productId}`);
 
   if (loading) return <LoadingScreen />;
-
   return (
     <>
       <Navs />
@@ -261,7 +173,7 @@ const Cart = () => {
 
                           <i
                             className="fa-solid fa-trash mx-4"
-                            onClick={() => removeItemFromCart(item.id)}
+                            onClick={() => removeItem(item.id)}
                             style={{ cursor: "pointer" }}
                           ></i>
                         </div>

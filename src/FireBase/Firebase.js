@@ -10,11 +10,8 @@ const firebaseConfig = {
   messagingSenderId: "244561551238",
   appId: "1:244561551238:web:efe9a7c12ac2dce47a1607"
 };
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Cloud Firestore and get a reference to the service
 const db = getFirestore(app);
 
-// تصدير db والدوال الأخرى لاستخدامها في باقي المشروع
 export { db, doc, getDoc, collection, getDocs, addDoc,deleteDoc,updateDoc,where ,query};

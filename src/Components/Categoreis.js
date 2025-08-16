@@ -41,9 +41,7 @@ const Shop = () => {
 
   return (
     <Container className="my-4" style={{ paddingTop: "100px" }} id='categ'>
-      <div className='head'>
-        <button className='head' disabled>تسوق حسب النوع</button>
-      </div>
+
 
       <Row className="category-grid">
         {categories.map((category) => (

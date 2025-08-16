@@ -12,16 +12,18 @@ import Recovery from './pages/Recovery';
 import Shipping from './pages/Shipping';
 import Contact from './pages/Contact';
 import Allporducts from './pages/Allprouducts';
-import Pageone from './AllPages/Pageone';
-import Num1 from './AllPages/Page1';
-import Num2 from './AllPages/2';
-import Num3 from './AllPages/3';
-
+import Pageone from './pages/Pageone';
+import Num1 from './pages/Pagetwo';
+import Num2 from './pages/PageThree';
+import Num3 from './pages/PageFour';
+import { Provider } from 'react-redux';
+import { store } from "./store/store";
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
 root.render(
   <React.StrictMode>
       <Router>
+          <Provider store={store}>
         <Routes>
           <Route path="/" element={<App />} />
           <Route path="/cart" element={<Cart />} />
@@ -37,6 +39,7 @@ root.render(
           <Route path="/all" element={<Allporducts />} />
         </Routes>
         <ToastContainer position="bottom-center" autoClose={1000} />
+        </Provider>
       </Router>
   </React.StrictMode>
 );

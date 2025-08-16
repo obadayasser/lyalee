@@ -5,7 +5,7 @@ import Navbar from 'react-bootstrap/Navbar';
 import Offcanvas from 'react-bootstrap/Offcanvas';
 import { Link, useNavigate } from 'react-router-dom';
 import bg from '../Assets/1746837062044.png';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query ,where} from 'firebase/firestore';
 import { db } from '../FireBase/Firebase';
 
 function Navs({ onlyNavbar }) {
@@ -14,8 +14,16 @@ function Navs({ onlyNavbar }) {
   const [cartCount, setCartCount] = useState(0);
   const offcanvasRef = useRef(null);
   const navigate = useNavigate();
+const getGuestId = () => {
+  let guestId = localStorage.getItem("guestId");
 
-  // تعريف دالة التمرير خارج handleScrollToCateg
+  if (!guestId) {
+    guestId = `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    localStorage.setItem("guestId", guestId);
+  }
+
+  return guestId;
+};
   const scrollToElement = (id) => {
     const element = document.getElementById(id);
     if (element) {
@@ -40,16 +48,24 @@ function Navs({ onlyNavbar }) {
     }
   }, [navigate]);
 
-  useEffect(() => {
-    const cartCollection = collection(db, "cart");
-    const unsubscribe = onSnapshot(cartCollection, (querySnapshot) => {
-      const totalItems = querySnapshot.docs.reduce((total, doc) => {
-        return total + (doc.data().quantity || 1);
-      }, 0);
-      setCartCount(totalItems);
-    });
-    return () => unsubscribe();
-  }, []);
+useEffect(() => {
+  const guestId = getGuestId(); 
+
+  const cartCollection = query(
+    collection(db, "cart"),
+    where("guestId", "==", guestId) 
+  );
+
+  const unsubscribe = onSnapshot(cartCollection, (querySnapshot) => {
+    const totalItems = querySnapshot.docs.reduce((total, doc) => {
+      return total + (doc.data().quantity || 1);
+    }, 0);
+    setCartCount(totalItems);
+  });
+
+  return () => unsubscribe();
+}, []);
+
 
   useEffect(() => {
     const handleScroll = () => {

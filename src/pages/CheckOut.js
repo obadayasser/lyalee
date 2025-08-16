@@ -42,9 +42,26 @@ const Checkout = () => {
     paymentMethod: 'cod',
   });
 
+const getGuestId = () => {
+  let guestId = localStorage.getItem("guestId");
+  if (!guestId) {
+    guestId = `guest_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    localStorage.setItem("guestId", guestId);
+  }
+  return guestId;
+};
+
 const fetchCartItems = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, "cart"));
+    const guestId = getGuestId(); // 👈 نجيب guestId الخاص بالزائر
+
+    // ✅ نفلتر السلة بحيث تجيب بس عناصر نفس الزائر
+    const cartQuery = query(
+      collection(db, "cart"),
+      where("guestId", "==", guestId)
+    );
+    const querySnapshot = await getDocs(cartQuery);
+
     const collectionNames = ["one", "two", "three", "pageone"];
 
     const items = await Promise.all(
@@ -52,6 +69,7 @@ const fetchCartItems = async () => {
         const cartItem = { id: docSnap.id, ...docSnap.data() };
         let foundProduct = null;
 
+        // 👇 نبحث عن المنتج في كل الـ collections
         for (const collectionName of collectionNames) {
           const productRef = doc(db, collectionName, cartItem.productId);
           const productSnap = await getDoc(productRef);
@@ -70,7 +88,9 @@ const fetchCartItems = async () => {
           cartItem.height = foundProduct.height;
           cartItem.color = foundProduct.color;
         } else {
-          console.warn(`Product with id ${cartItem.productId} not found in any collection.`);
+          console.warn(
+            `Product with id ${cartItem.productId} not found in any collection.`
+          );
         }
 
         return cartItem;
@@ -79,7 +99,7 @@ const fetchCartItems = async () => {
 
     setCartItems(items);
   } catch (error) {
-    toast.error('حدث خطأ في جلب عناصر السلة');
+    toast.error("❌ حدث خطأ في جلب عناصر السلة");
   } finally {
     setLoading(false);
   }
@@ -165,81 +185,89 @@ const fetchCartItems = async () => {
     toast.info("تم إلغاء كود الخصم");
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (cartItems.length === 0) {
-      toast.error("السلة فارغة. لا يمكن تقديم الطلب");
-      return;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (cartItems.length === 0) {
+    toast.error("السلة فارغة. لا يمكن تقديم الطلب");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const guestId = getGuestId(); // ✅ نجيب guestId بتاع الزائر
+
+    const orderData = {
+      guestId, // ✅ ربط الطلب بالزائر
+      customerInfo: {
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || null
+      },
+      shippingInfo: {
+        address: formData.shippingAddress,
+        governorate: formData.governorate,
+        district: formData.district,
+        notes: formData.shippingNotes || null
+      },
+      billingInfo: {
+        address: formData.billingAddressSame ? formData.shippingAddress : formData.billingAddress
+      },
+      paymentMethod: formData.paymentMethod,
+      items: cartItems.map(item => ({
+        id: item.id,
+        name: item.text, // ✅ خليها text زي ما مستخدم في الـ Cart
+        price: item.price,
+        quantity: item.quantity,
+        img: item.img || null,
+        weight: item.weight || null,
+        height: item.height || null,
+        color: item.color || null,
+      })),
+      subtotal,
+      discount: isCouponApplied ? {
+        code: couponCode,
+        value: discountAmount,
+        couponId: couponDetails?.id
+      } : null,
+      shippingCost,
+      total,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // ✅ ننضف البيانات من أي undefined
+    const cleanOrderData = JSON.parse(JSON.stringify(orderData));
+
+    const orderRef = await addDoc(collection(db, "orders"), cleanOrderData);
+
+    // ✅ تحديث الكوبون لو مستخدم
+    if (isCouponApplied && couponDetails) {
+      const couponRef = doc(db, "discounts", couponDetails.id);
+      await updateDoc(couponRef, {
+        usedCount: (couponDetails.usedCount || 0) + 1,
+        lastUsed: new Date().toISOString(),
+        lastOrderId: orderRef.id
+      });
     }
 
-    setLoading(true);
-    try {
-      const orderData = {
-        customerInfo: {
-          name: formData.name,
-          phone: formData.phone,
-          email: formData.email || null
-        },
-        shippingInfo: {
-          address: formData.shippingAddress,
-          governorate: formData.governorate,
-          district: formData.district,
-          notes: formData.shippingNotes || null
-        },
-        billingInfo: {
-          address: formData.billingAddressSame ? formData.shippingAddress : formData.billingAddress
-        },
-        paymentMethod: formData.paymentMethod,
-        items: cartItems.map(item => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          img: item.img || null
-        })),
-        subtotal: subtotal,
-        discount: isCouponApplied ? {
-          code: couponCode,
-          value: discountAmount,
-          couponId: couponDetails?.id
-        } : null,
-        shippingCost: shippingCost,
-        total: total,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+    // ✅ مسح السلة بتاعة نفس الـ guestId
+    const deletePromises = cartItems.map(item =>
+      deleteDoc(doc(db, "cart", item.id))
+    );
+    await Promise.all(deletePromises);
 
-      // Remove undefined values
-      const cleanOrderData = JSON.parse(JSON.stringify(orderData));
+    setCartItems([]);
+    toast.success('تم تقديم طلبك بنجاح!');
+    setOrderSuccess(true);
+  } catch (error) {
+    console.error("Order submission error:", error);
+    toast.error('حدث خطأ أثناء تقديم الطلب. يرجى المحاولة مرة أخرى');
+  } finally {
+    setLoading(false);
+  }
+};
 
-      const orderRef = await addDoc(collection(db, "orders"), cleanOrderData);
-
-      if (isCouponApplied && couponDetails) {
-        const couponRef = doc(db, "discounts", couponDetails.id);
-        await updateDoc(couponRef, {
-          usedCount: (couponDetails.usedCount || 0) + 1,
-          lastUsed: new Date().toISOString(),
-          lastOrderId: orderRef.id
-        });
-      }
-
-      // Clear cart
-      const deletePromises = cartItems.map(item =>
-        deleteDoc(doc(db, "cart", item.id))
-      );
-      await Promise.all(deletePromises);
-
-      setCartItems([]);
-      toast.success('تم تقديم طلبك بنجاح!');
-      setOrderSuccess(true);
-    } catch (error) {
-      console.error("Order submission error:", error);
-      toast.error('حدث خطأ أثناء تقديم الطلب. يرجى المحاولة مرة أخرى');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     fetchCartItems();
